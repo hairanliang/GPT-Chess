@@ -11,28 +11,7 @@ import chess
 import itertools
 from util import produce_pairs
 
-# Initialize tokenizer
-# tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
-# tokenizer.pad_token = tokenizer.eos_token
-
-# Load and preprocess the data
-# file = "/Users/hairanliang/Documents/Chess.com/MyGames2012-02_fixed.pgn"
-# f = open(file)
-# game_list = []
-
-# while True:
-#     game = chess.pgn.read_game(f)
-#     if game is None:
-#         break  # end of file
-    
-#     moves = game.board().variation_san(game.mainline_moves())
-#     game_list.append(moves)
-
-# lissy = tokenizer(game_list)['input_ids']
-# lissy = list(itertools.chain.from_iterable(lissy))
-# vocab_size = 50257
-
-file = "/Users/hairanliang/Documents/Chess.com/all_games_hairan.pgn"
+file = "/Users/hairanliang/Downloads/LichessGames/lichess_2012_100000.pgn"
 f = open(file)
 
 game_list = []
@@ -69,8 +48,8 @@ print(f"tokenizer dict: {token_dict}")
 print(f"vocab_size: {vocab_size}")
 
 # Initialize model, dataset, and dataloader
-model = Decoder(vocab_size=vocab_size, block_size=120, num_dec_blocks=6, emb_dim=512, model_dim=512, num_heads=2)
-ds = ChessDataset(game_list, token_dict, max_length=120)
+model = Decoder(vocab_size=vocab_size, block_size=12, num_dec_blocks=6, emb_dim=512, model_dim=512, num_heads=2)
+ds = ChessDataset(game_list, token_dict, max_length=12)
 batch_size = 25
 dataloader = DataLoader(ds, batch_size=batch_size, shuffle=True)
 
@@ -102,8 +81,3 @@ for epoch in range(num_epochs):
         optimizer.step()
 
         print(f"Epoch {epoch}, Batch {i}, Loss: {loss.item()}")
-
-
-# Next step is to scale up. Getting loss down from 8.05 to 8.00, but likely need WAY more games. Right now only have 100 LOL. Time for the lichess dataset oh god...
-
-# Might want to build a generate function as well.
