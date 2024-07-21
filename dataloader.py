@@ -29,8 +29,13 @@ class ChessDataset(Dataset):
     def __getitem__(self, idx):
         # print("inside getitem")
         # Remember, this is applied to one element of the batch, it doesn't see the other batch elements here
+        prepend = 'BOS'
+        
         game = self.games[idx].copy() # Have to make sure don't mutate it with each access, so just make a copy
-
+        print(f"game before: {game}")
+        game = [prepend] + game
+    
+        print(f"game: {game}")
         # Now, need to append the EOS token to the end of the tokenized game: if len() < max_length + 1, then add until it is max_length + 1
         if len(game) < self.max_length + 1:
             while len(game) < self.max_length + 1:
