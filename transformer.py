@@ -1,4 +1,3 @@
-# I don't want to do the tokenizer first...
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
