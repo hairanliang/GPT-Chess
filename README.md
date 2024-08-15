@@ -269,15 +269,7 @@ Talk about produce_pairs function to make it efficient training.
 
 ## FastAPI
 
-## Docker Compose
-## Demo
-
-Insert gif or link to demo
-
-
-## Documentation
-
-[Documentation](https://linktodocumentation)
+## Docker 
 
 
 
