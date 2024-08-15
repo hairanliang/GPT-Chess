@@ -10,15 +10,13 @@ I built and trained a GPT model that can generate chess games in PGN notation fr
 Generative pre-trained transformer, or GPT, models have taken the world by storm. ChatGPT and similar LLMs are being used by students, parents, and enterprises across the world to solve a variety of problems. While I knew the basic theory of transformers, I wanted to delve deeper and actually create one from scratch by following the original 
 [AttentionIsAllYouNeed](https://arxiv.org/abs/1706.03762) paper. 
 
-Having played professional chess for close to half of my life, I wanted to tie the project to chess somehow, which is how I came up with the idea of GPT-Chess. Many of us may be familiar with the famous case of AlphaZero that dominated the chess scene, not only beating the best players but more importantly the strongest chess engines. My goal was not to dethrone AlphaZero——my hunch is that reinforcement learning based models will always be the king of chess engines——but to create a GPT model that could produce reasonable chess games.
+Having played professional chess for close to half of my life, I wanted to tie the project to chess somehow, which is how I came up with the idea of GPT-Chess. Many of us may be familiar with the famous case of AlphaZero, a reinforcement learning computer that dominated the chess scene. It not only beat the best human players, but more importantly, the strongest chess engines. My goal was not to dethrone AlphaZero——my hunch is that reinforcement learning based models will always be the king of chess engines——but to create a GPT model that could produce reasonable chess games.
 
 With this project, I wanted to learn how to code up the Transformer architecture, and consequently the GPT-2 architecture all in PyTorch. I wanted to learn more about training enormous models by firsthand training one——my base model ended up with 75,222,251 parameters! Lastly, I wanted some more practical experience deploying deep learning models, so I experimented with FastAPI and Docker to containerize and wrap my model with an API that others can easily call and use to generate chess games, whether on a virtual machine or local machine.
 
-
-
 ## How do we convert chess games to text?
 
-Luckily for me, chess games have an easy way to be converted to text as it is written into professional chess itself——chess PGN notation. In formal games, chess players are responsible for writing down each move made in the game. This serves two purposes: 1. If there is a disagreement later in the game and a referee needs to be involved, the players can refer to the game notation 2. So that players can replay their games and learn from their mistakes/admire their victories (the former is less fun but infinitely more helpful for improvement...).
+In order to build a GPT-model, we need some way to represent chess in text which can further be tokenized. Luckily for me, chess games have an easy way to be converted to text as it is ingrained into professional chess itself——chess PGN notation. In formal games, chess players are responsible for writing down each move made in the game. This serves two purposes: 1. If there is a disagreement later in the game and a referee needs to be involved, the players can refer to the game notation 2. Players can replay their games and learn from their mistakes or admire their victories (the former is less fun but infinitely more helpful for improvement...).
 
 Here is an example of chess notation for the famous 4 move checkmate: 
 
@@ -152,7 +150,18 @@ Now that we have the token representations, they are ready to be passed into the
 
 ### LayerNorm
 
-LayerNorm is a method to normalize the features of each token independently. This helps stabilize training, and in the original AttentionIsAllYouNeed paper, they applied the LayerNorm after the Attention layer (we will get to what Attention is shortly). However, after the [PreNorm paper](https://arxiv.org/pdf/2002.04745), the PreNorm method has been favored, so I applied LayerNorm right after the Embeddings and before Attention. Thank you Andrej Karpathy and specifically this [video](https://www.youtube.com/watch?v=kCc8FmEb1nY&t=5878s) for being a great guide for PreNorm and the overall model building process. 
+LayerNorm is a method to normalize the features of each token independently. This helps stabilize training, and in the original AttentionIsAllYouNeed paper, they applied the LayerNorm after the Attention layer (we will get to what Attention is shortly). However, after the [PreNorm paper](https://arxiv.org/pdf/2002.04745), the PreNorm method has been favored, so I applied LayerNorm right after the Embeddings and before Attention. Thank you Andrej Karpathy and specifically this [video](https://www.youtube.com/watch?v=kCc8FmEb1nY&t=5878s) for being a great guide for understanding PreNorm and the overall model building process. 
+
+Fortunately, applying LayerNorm is trivial in PyTorch: 
+
+    self.ln_1 = nn.LayerNorm(model_dim)
+    ...
+
+    def forward(self, x):
+       
+        x_norm = self.ln_1(x)
+
+After applying LayerNorm, we are now at the stage of Attention.
 
 ### Attention
 
@@ -164,21 +173,112 @@ Cherries are Hairan's favorite fruit
 
 It's clear to anyone reading the sentence that the words "Cherries" and "fruit" along with "Hairan's" and "favorite" are very related to each other in this phrase. Ideally, when we train our model——let's say it was a GPT model——hopefully it would learn these relations so that when it generates sentences after this one, it can make use of these connections to create more coherent and logical sentences. But, how does our GPT model learn these relations? That's where Queries, Keys, and Values——the foundations of attention——come into play.
 
-Queries: Think of these as a token asking for what it's looking for, similar to how you might query a database in SQL. Each token will have a unique query, which will depend on its own characteristics. This is as far as I can explain it, and it is very high-level, which is mostly because interpretabililty around Transformers is an ongoing research problem——we don't know why they are so powerful. 
+Queries: Think of these as a token asking for what it's looking for, similar to how you might query a database in SQL. Each token will have a unique query, which will depend on its own characteristics. This is as far as I can explain it, and it is very high-level, which is mostly because interpretabililty around Transformers is an ongoing research problem——we don't know a lot about why they are so powerful. 
 
 To get the queries for each token, we simply use a PyTorch linear layer that goes from the original embeddings we got after the positional + token embeddings.
 
     self.Q = nn.Linear(model_dim, model_dim)
 
+Now that each token has queries to "ask" the other tokens, we need the other tokens——including the current token itself——to provide an "answer," so we can see if the two tokens are related to each other, or not so much. This gets us to Keys.
 
+Keys: These are the answers to our queries, and again each token will have its own key vector. Similar to Queries, we use a simple PyTorch Linear layer:
+
+    self.K = nn.Linear(model_dim, model_dim) 
+
+Now, how can we have each token use its query to "ask" the rest of the token's keys to get an "answer?" A simple tensor multiplication of the queries with the *transpose* of the keys. If we had x keys, and x queries, each with dimension y, and ignoring the batch dimension, this is just a matrix multiplication of (x, y) @ (y, x) --> (x, x), where entry (i, j) in the matrix is the result of the i'th query and j'th key——in other words the result of how important the j'th token is to the i'th token. Notice that this is not a symmetrical relationship: the attention value of (i,j) is not necessarily equal to (j, i). 
+
+    pre_softmax = (q @ k.transpose(-1, -2)) / (model_dim ** 0.5) 
+
+Now that we have these attention values for each token, we still need to weigh the importance of the other tokens (and itself!) to produce the final representations for each token. Notice the name of the above variable is pre-softmax, since we will soon be taking the softmax of it. To get the final token representations through this attention layer, we use the Values and softmax. 
+
+Values: Pretty self-explanatory——they represent the values of the tokens themselves. These values are *not* the final representations——they will need to be weighted based on a softmax distribution of how important the other tokens are to the current token. This softmax distribution is produced with the matrix we generated above after doing q @ k.transpose:
+
+    post_softmax = self.softmax(pre_softmax)
+        
+    out = post_softmax @ v
+    
+    return out 
+
+It's important to note that the attention calculated in the encoder will differ from attention calculated in the decoder because we will not want early tokens to attend to later tokens since that would be "cheating", but we'll get more into the details of that difference later on. For now on, let's move on to the next stage of the model, the residual connection.
+
+### Residual Connection 
+
+The GPT model we will be training is going to have many, many layers. And, while this will help the model learn more complex representations of data, the potential drawback is that during training, gradients will get smaller and smaller as they move from layer to layer, eventually vanishing completely and hindering training since we now have dead neurons. Fortunately, we can make use of Residual Connections, an idea published by He et al. in 2015. These residuals act as a gradient highway, allowing the gradient to flow from the loss directly back to the input embeddings. This way, even if early on in training, there becomes dead neurons within the attention calculations, we can still continue training because of the residual connections. Implementing this in code is trivial: 
+
+    x = x + attention # first residual (the norm is inside the residual)
+
+This is one example of a residual, where the attention variable represents the value of the tokens after LayerNorm and attention, and x is before the attention. 
+
+### Position-wise Feedforward Network
+
+After the attention calculations, we have a FeedForward layer that acts on each position of the sequence independently. Essentially, this 2-layer linear neural network further helps each token incorporate the information it learned from the attention layer. We do the same process of layer norm to normalize each position's weights to aid training as well as the residual connection to prevent vanishing gradients. 
+
+    self.ffn = FeedForwardNetwork(model_dim, model_dim)
+
+Now after this Feed Forward Network, this completes one Encoder Block. Since Transformers and GPT models are made up of many such Encoder/Decoder Blocks, all we have to do is pass the output of the first Encoder block into the next block, eventually until we reach the final block.
+
+This is a perfect time to transition to talking about the Decoder, since it has a unique final layer, where it must map the output from the final Decoder Block into probabilities for the next token. This way, using our decoder (which is what ChatGPT relies on), we can probabilistically generate the next token. As an example, for:
+
+Cherries are Hairan's favorite fruit
+
+the next token generate could be "because", and after that maybe we would get a sentence of:
+
+Cherries are Hairan's favorite fruit because he can eat so many at a time.
+
+All of this is to say, we need a way for our model to generate a prediction for the next token, which means we must map our model's current output, which is in the model_dim, to the dimension of vocab_size, to generate a probability distribution we can sample from.
+
+### Projection Head
+
+Our projection head maps from the model dimension to the size of our vocabulary, which is an easy PyTorch Linear layer combined with a softmax to generate our probability distribution:
+
+    class ProjectionHead(nn.Module):
+        """
+        Projection head for the Decoder to map back to probabilities for next token
+        """
+        def __init__(self, vocab_size, model_dim):
+            super(ProjectionHead, self).__init__()
+            self.vocab_size = vocab_size
+            self.model_dim = model_dim
+            self.linear = nn.Linear(model_dim, vocab_size)
+            self.softmax = nn.Softmax(dim=-1)
+
+        def forward(self, x):
+            out = self.linear(x)
+            out = self.softmax(out)
+            return out
+
+With this final output, we can then generate the next token, and we'll go more into depth about this when we talk about Inference. 
+
+For now, those are the main components for the Encoder and Decoder blocks. We will now talk about the significant difference between the attention calculation between the Encoder and Decoder: masking.
+
+### Attention Masking
+
+To give intuition on why we need different ways of calculating attention for Encoder versus Decoder, let's go back to the 
+
+
+
+Now, we will get into slightly more advanced aspects of the code, some of which aren't technically necessary but have shown to lead to better results and are implemented in the AttentionIsAllYouNeed paper. We will the
+
+### 
 
 ## Training
+
+Talk about produce_pairs function to make it efficient training.
 
 **Still training on the largest dataset with the help of GPUs, so this section will be updated once done with training.
 
 ## FastAPI
 
-## Docker 
+## Docker Compose
+## Demo
+
+Insert gif or link to demo
+
+
+## Documentation
+
+[Documentation](https://linktodocumentation)
+
 
 
 
