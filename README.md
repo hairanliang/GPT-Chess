@@ -84,7 +84,7 @@ Clearly, the model learns the first several moves as the games, but soon, it qui
 
 The second dataset, and the main one that I am interested in training the model for, is an enormous dataset of ~500,000 games between "Elite" players, which is defined by players with ratings greater than 2300. Specifically, I chose the December 2021 [dataset](https://database.nikonoel.fr/)——thank you @NikoNoel for this!
 
-In the future, once I'm able to finish training the second dataset, I want to use an even bigger dataset, with at least 1 million games. The reason for this is that Transformers are very data hungry, which is a perfect segueway to the next section.
+In the future, once I'm able to finish training the second dataset, I want to use an even bigger dataset, with at least 1 million games. The reason for this is that Transformers are very data hungry, which is a perfect transition to the next section.
 
 ## Model Architecture
 
