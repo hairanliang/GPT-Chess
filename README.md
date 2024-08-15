@@ -1,7 +1,7 @@
 
 # GPT-Chess
 
-I built and trained a GPT model that can generate chess games in PGN notation from scratch in PyTorch. I attached it to an API using FastAPI and containerized it using Docker Compose.
+I built and trained a GPT model that can generate chess games in PGN notation from scratch in PyTorch. I attached it to an API using FastAPI and containerized it using Docker.
 
 
 
